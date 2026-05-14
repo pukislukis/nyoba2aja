@@ -81,6 +81,11 @@ public class RestoRepository {
             stmt.execute(createTableMenu);
             System.out.println("[Sistem] Tabel 'daftar_menu' siap digunakan.");
 
+            // Pastikan database lama ikut memiliki kolom tenant_id.
+            // CREATE TABLE IF NOT EXISTS tidak akan mengubah struktur tabel yang sudah ada,
+            // sehingga aplikasi versi lama bisa gagal saat query memakai tenant_id.
+            migrasiKolomTenantIdDaftarMenu(conn);
+
             // 4. Eksekusi pembuatan tabel transaksi
             stmt.execute(createTableTransaksi);
             System.out.println("[Sistem] Tabel 'transaksi' siap digunakan.");
@@ -142,6 +147,80 @@ public class RestoRepository {
         }
     }
 
+    /**
+     * Menambahkan kolom tenant_id ke tabel daftar_menu yang sudah terlanjur dibuat
+     * oleh versi lama aplikasi. Tanpa migrasi ini, query tenant akan gagal dengan pesan
+     * "Unknown column 'tenant_id'" karena CREATE TABLE IF NOT EXISTS tidak mengubah
+     * struktur tabel yang telah ada.
+     */
+    private void migrasiKolomTenantIdDaftarMenu(Connection conn) throws SQLException {
+        if (kolomSudahAda(conn, "daftar_menu", "tenant_id")) {
+            return;
+        }
+
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("ALTER TABLE daftar_menu ADD COLUMN tenant_id INT NULL AFTER id");
+
+            int defaultTenantId = ambilTenantIdDefault(conn);
+            try (PreparedStatement pstmt = conn.prepareStatement(
+                    "UPDATE daftar_menu SET tenant_id = ? WHERE tenant_id IS NULL")) {
+                pstmt.setInt(1, defaultTenantId);
+                pstmt.executeUpdate();
+            }
+
+            stmt.execute("ALTER TABLE daftar_menu MODIFY COLUMN tenant_id INT NOT NULL");
+
+            if (!foreignKeyTenantSudahAda(conn)) {
+                stmt.execute("ALTER TABLE daftar_menu "
+                        + "ADD CONSTRAINT fk_daftar_menu_tenant "
+                        + "FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE");
+            }
+        }
+
+        System.out.println("[Sistem] Kolom tenant_id berhasil ditambahkan ke tabel 'daftar_menu'.");
+    }
+
+    /**
+     * Mengecek keberadaan kolom agar migrasi aman dijalankan berkali-kali.
+     */
+    private boolean kolomSudahAda(Connection conn, String namaTabel, String namaKolom) throws SQLException {
+        DatabaseMetaData metaData = conn.getMetaData();
+        try (ResultSet rs = metaData.getColumns(conn.getCatalog(), null, namaTabel, namaKolom)) {
+            return rs.next();
+        }
+    }
+
+    /**
+     * Mengambil tenant pertama sebagai pemilik awal untuk menu lama yang belum punya tenant.
+     */
+    private int ambilTenantIdDefault(Connection conn) throws SQLException {
+        String query = "SELECT id FROM tenant ORDER BY id LIMIT 1";
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(query)) {
+            if (rs.next()) {
+                return rs.getInt("id");
+            }
+        }
+
+        throw new SQLException("Tidak ada data tenant untuk migrasi daftar_menu. Pastikan tabel tenant sudah terisi.");
+    }
+
+    /**
+     * Mengecek apakah foreign key daftar_menu.tenant_id ke tenant.id sudah ada.
+     */
+    private boolean foreignKeyTenantSudahAda(Connection conn) throws SQLException {
+        DatabaseMetaData metaData = conn.getMetaData();
+        try (ResultSet rs = metaData.getImportedKeys(conn.getCatalog(), null, "daftar_menu")) {
+            while (rs.next()) {
+                if ("tenant_id".equalsIgnoreCase(rs.getString("FKCOLUMN_NAME"))
+                        && "tenant".equalsIgnoreCase(rs.getString("PKTABLE_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // Mengambil semua menu dari database
     public List<Menu> getAllMenu() {
         List<Menu> menuList = new ArrayList<>(); 
@@ -158,12 +237,14 @@ public class RestoRepository {
                 String tipe = rs.getString("tipe");
                 String keterangan = rs.getString("keterangan");
 
+                int tenantId = rs.getInt("tenant_id");
+
                 if (tipe.equalsIgnoreCase("MAKANAN")) {
                     boolean pedas = keterangan.equalsIgnoreCase("Pedas");
-                    menuList.add(new Makanan(id, nama, harga, pedas));
+                    menuList.add(new Makanan(id, nama, harga, pedas, tenantId));
                 } else if (tipe.equalsIgnoreCase("MINUMAN")) {
                     boolean dingin = keterangan.equalsIgnoreCase("Dingin");
-                    menuList.add(new Minuman(id, nama, harga, dingin));
+                    menuList.add(new Minuman(id, nama, harga, dingin, tenantId));
                 }
             }
         } catch (SQLException e) {
@@ -194,10 +275,10 @@ public class RestoRepository {
 
                 if (tipe.equalsIgnoreCase("MAKANAN")) {
                     boolean pedas = keterangan.equalsIgnoreCase("Pedas");
-                    menuList.add(new Makanan(id, nama, harga, pedas));
+                    menuList.add(new Makanan(id, nama, harga, pedas, tenantId));
                 } else if (tipe.equalsIgnoreCase("MINUMAN")) {
                     boolean dingin = keterangan.equalsIgnoreCase("Dingin");
-                    menuList.add(new Minuman(id, nama, harga, dingin));
+                    menuList.add(new Minuman(id, nama, harga, dingin, tenantId));
                 }
             }
         } catch (SQLException e) {

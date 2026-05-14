@@ -24,6 +24,7 @@ public class Pelanggan {
     public void setId(int id) { this.id = id; }
     
     public String getPelangganId() { return pelangganId; }
+    public String getIdPelanggan() { return pelangganId; }
     public void setPelangganId(String pelangganId) { this.pelangganId = pelangganId; }
     
     public String getNama() { return nama; }
