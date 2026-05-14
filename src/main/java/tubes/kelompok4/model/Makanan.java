@@ -11,6 +11,11 @@ public class Makanan extends Menu {
         super(id, nama, harga); 
         this.isPedas = isPedas;
     }
+    
+    public Makanan(int id, String nama, double harga, boolean isPedas, int tenantId) {
+        super(id, nama, harga, tenantId);
+        this.isPedas = isPedas;
+    }
 
     public boolean isPedas() { return isPedas; }
 

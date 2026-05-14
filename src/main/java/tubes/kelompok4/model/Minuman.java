@@ -10,6 +10,11 @@ public class Minuman extends Menu {
         super(id, nama, harga);
         this.isDingin = isDingin;
     }
+    
+    public Minuman(int id, String nama, double harga, boolean isDingin, int tenantId) {
+        super(id, nama, harga, tenantId);
+        this.isDingin = isDingin;
+    }
 
     public boolean isDingin() { return isDingin; }
 

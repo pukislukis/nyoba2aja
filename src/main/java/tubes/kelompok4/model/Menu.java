@@ -11,6 +11,7 @@ public abstract class Menu {
     private int id;
     private String nama;
     private double harga;
+    private int tenantId;  // ID tenant pemilik menu ini
 
     // [OVERLOADING] Constructor 1: Constructor kosong
     public Menu() {}
@@ -20,6 +21,14 @@ public abstract class Menu {
         this.id = id;
         this.nama = nama;
         this.harga = harga;
+    }
+    
+    // [OVERLOADING] Constructor 3: Constructor dengan tenant
+    public Menu(int id, String nama, double harga, int tenantId) {
+        this.id = id;
+        this.nama = nama;
+        this.harga = harga;
+        this.tenantId = tenantId;
     }
 
     // Getter dan Setter untuk Encapsulation
@@ -31,6 +40,9 @@ public abstract class Menu {
 
     public double getHarga() { return harga; }
     public void setHarga(double harga) { this.harga = harga; }
+    
+    public int getTenantId() { return tenantId; }
+    public void setTenantId(int tenantId) { this.tenantId = tenantId; }
 
     // [ABSTRACTION]: Abstract method yang wajib di-override oleh class turunannya.
     public abstract void tampilkanInfo();
